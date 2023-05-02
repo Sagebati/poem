@@ -202,8 +202,13 @@ impl Cors {
         // Creates a pattern in the form url1|url2|url3
         let pat = self.allow_origins.iter()
             .map(|header_value| header_value.to_str().unwrap())
-            .map(|s| escape(s).replace(r"\*", ".*"))
-            .collect::<Vec<String>>().join("|");
+            .map(|s| {
+                if s.starts_with("*.") {
+                    escape(s).replace(r"\*\.", r"(.*\.)?")
+                } else {
+                    escape(s).replace(r"\*", r".*")
+                }
+            }).collect::<Vec<String>>().join("|");
 
         Some(Regex::new(&format!("^(?:https://)?(?:{})$", pat)).expect("Couldn't compile the regex"))
     }
