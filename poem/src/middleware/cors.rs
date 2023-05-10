@@ -13,10 +13,10 @@ use crate::{
         header::{HeaderName, HeaderValue},
         Method,
     },
+    IntoResponse,
     middleware::Middleware,
     request::Request,
-    response::Response,
-    IntoResponse, Result,
+    response::Response, Result,
 };
 
 /// Middleware for CORS
@@ -69,8 +69,8 @@ impl Cors {
     /// NOTE: Default is allow any header.
     #[must_use]
     pub fn allow_header<T>(mut self, header: T) -> Self
-    where
-        HeaderName: TryFrom<T>,
+        where
+            HeaderName: TryFrom<T>,
     {
         let header = match <HeaderName as TryFrom<T>>::try_from(header) {
             Ok(header) => header,
@@ -83,9 +83,9 @@ impl Cors {
     /// Add many allow headers.
     #[must_use]
     pub fn allow_headers<I, T>(self, headers: I) -> Self
-    where
-        I: IntoIterator<Item = T>,
-        HeaderName: TryFrom<T>,
+        where
+            I: IntoIterator<Item=T>,
+            HeaderName: TryFrom<T>,
     {
         headers
             .into_iter()
@@ -97,8 +97,8 @@ impl Cors {
     /// NOTE: Default is allow any method.
     #[must_use]
     pub fn allow_method<T>(mut self, method: T) -> Self
-    where
-        Method: TryFrom<T>,
+        where
+            Method: TryFrom<T>,
     {
         let method = match <Method as TryFrom<T>>::try_from(method) {
             Ok(method) => method,
@@ -111,9 +111,9 @@ impl Cors {
     /// Add many allow methods.
     #[must_use]
     pub fn allow_methods<I, T>(self, methods: I) -> Self
-    where
-        I: IntoIterator<Item = T>,
-        Method: TryFrom<T>,
+        where
+            I: IntoIterator<Item=T>,
+            Method: TryFrom<T>,
     {
         methods
             .into_iter()
@@ -125,8 +125,8 @@ impl Cors {
     /// NOTE: Default is allow any origin.
     #[must_use]
     pub fn allow_origin<T>(mut self, origin: T) -> Self
-    where
-        HeaderValue: TryFrom<T>,
+        where
+            HeaderValue: TryFrom<T>,
     {
         let origin = match <HeaderValue as TryFrom<T>>::try_from(origin) {
             Ok(origin) => origin,
@@ -139,9 +139,9 @@ impl Cors {
     /// Add many allow origins.
     #[must_use]
     pub fn allow_origins<I, T>(self, origins: I) -> Self
-    where
-        I: IntoIterator<Item = T>,
-        HeaderValue: TryFrom<T>,
+        where
+            I: IntoIterator<Item=T>,
+            HeaderValue: TryFrom<T>,
     {
         origins
             .into_iter()
@@ -155,8 +155,8 @@ impl Cors {
     /// determine whether to allow the request.
     #[must_use]
     pub fn allow_origins_fn<F>(mut self, f: F) -> Self
-    where
-        F: Fn(&str) -> bool + Send + Sync + 'static,
+        where
+            F: Fn(&str) -> bool + Send + Sync + 'static,
     {
         self.allow_origins_fn = Some(Arc::new(f));
         self
@@ -165,8 +165,8 @@ impl Cors {
     /// Add an expose header.
     #[must_use]
     pub fn expose_header<T>(mut self, header: T) -> Self
-    where
-        HeaderName: TryFrom<T>,
+        where
+            HeaderName: TryFrom<T>,
     {
         let header = match <HeaderName as TryFrom<T>>::try_from(header) {
             Ok(header) => header,
@@ -179,9 +179,9 @@ impl Cors {
     /// Add many expose headers.
     #[must_use]
     pub fn expose_headers<I, T>(self, headers: I) -> Self
-    where
-        I: IntoIterator<Item = T>,
-        HeaderName: TryFrom<T>,
+        where
+            I: IntoIterator<Item=T>,
+            HeaderName: TryFrom<T>,
     {
         headers
             .into_iter()
@@ -205,10 +205,10 @@ impl Cors {
             .iter()
             .map(|header_value| header_value.to_str().unwrap())
             .map(|s| {
-                if s.starts_with("*.") {
-                    escape(s).replace(r"\*\.", r"(.*\.)?")
+                if s.starts_with("*.") || s.starts_with("https://*.") || s.starts_with("http://*.") {
+                    escape(s).replace(r"\*\.", r"(?:.*\.)?") // any subdomain and the '.' is optional
                 } else {
-                    escape(s).replace(r"\*", r".*")
+                    escape(s).replace(r"\*", r".*") // any pattern
                 }
             })
             .collect::<Vec<String>>()
@@ -259,7 +259,9 @@ pub struct CorsEndpoint<E> {
 impl<E: Endpoint> CorsEndpoint<E> {
     fn is_valid_origin(&self, origin: &HeaderValue) -> (bool, bool) {
         if let (Ok(origin), Some(regex)) = (origin.to_str(), &self.allow_origins) {
-            return (regex.is_match(origin), false);
+            if regex.is_match(origin) {
+                return (true, false);
+            }
         }
 
         if let Some(allow_origins_fn) = &self.allow_origins_fn {
@@ -299,9 +301,9 @@ impl<E: Endpoint> CorsEndpoint<E> {
                     Method::PATCH,
                     Method::TRACE,
                 ]
-                .iter()
-                .cloned()
-                .collect::<AccessControlAllowMethods>(),
+                    .iter()
+                    .cloned()
+                    .collect::<AccessControlAllowMethods>(),
             );
         } else {
             builder = builder.typed_header(self.allow_methods_header.clone());
@@ -426,12 +428,13 @@ impl<E: Endpoint> Endpoint for CorsEndpoint<E> {
 mod tests {
     use http::StatusCode;
 
-    use super::*;
     use crate::{
         endpoint::make_sync,
-        test::{TestClient, TestRequestBuilder},
-        EndpointExt, Error,
+        EndpointExt,
+        Error, test::{TestClient, TestRequestBuilder},
     };
+
+    use super::*;
 
     const ALLOW_ORIGIN: &str = "https://example.com";
     const ALLOW_HEADER: &str = "X-Token";
