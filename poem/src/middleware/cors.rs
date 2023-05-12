@@ -429,13 +429,12 @@ impl<E: Endpoint> Endpoint for CorsEndpoint<E> {
 mod tests {
     use http::StatusCode;
 
+    use super::*;
     use crate::{
         endpoint::make_sync,
         test::{TestClient, TestRequestBuilder},
         EndpointExt, Error,
     };
-
-    use super::*;
 
     const ALLOW_ORIGIN: &str = "https://example.com";
     const ALLOW_HEADER: &str = "X-Token";
